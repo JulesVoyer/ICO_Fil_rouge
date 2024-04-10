@@ -331,10 +331,11 @@ class SMA_VRP(Model):
 # AGENTS
 
 class myAgent(Agent):
-    def __init__(self, unique_id: int, model: SMA_VRP, pop_size: int):
+    def __init__(self, unique_id: int, model: SMA_VRP, pop_size: int, enemy: bool = False):
         super().__init__(unique_id, model)
         self.population : list[Solution] = sorted([self.model.gen_random_solution(rd.randint(2, 10)) for _ in range(pop_size)], key = lambda x : x.score())
         self.best_score = min(self.population, key = lambda x : x.score()).score()
+        self.enemy = enemy
         
     def fetch_better_solutions_from_pool(self):
         """
@@ -389,7 +390,7 @@ class GeneticAgent(myAgent):
         
 class RSAgent(myAgent):
     
-    def __init__(self, unique_id: int, model: SMA_VRP, pop_size: int, t0: float, cooling: float, nb_iter: int):
+    def __init__(self, unique_id: int, model: SMA_VRP, pop_size: int, t0: float, cooling: float):
         
         '''
         Create an instance of RSAgent
@@ -403,7 +404,6 @@ class RSAgent(myAgent):
         super().__init__(unique_id, model, pop_size)
         self.t = t0
         self.cooling = cooling
-        self.max_iter = nb_iter
         
         
     def step(self):
@@ -418,36 +418,25 @@ class RSAgent(myAgent):
         #Parameters for the algorithm
         s1: Solution = self.population[0]
         s2: Solution = s1
-        new_cycle: bool = True
         t: float = self.t
-        nb_iter: int = 0
         
-        while new_cycle and nb_iter < self.max_iter:
-                
-            nb_iter += 1
-            new_cycle = False
-            
-            #Calculate the difference
-            s2 = s2.generate_neighbors(1)[0]
-            f1: float = s1.score()
-            f2: float = s2.score()
-            df: float = f1 - f2
-            
-            if df < 0:
+        #Calculate the difference
+        s2 = s2.generate_neighbors(1)[0]
+        f1: float = s1.score()
+        f2: float = s2.score()
+        df: float = f1 - f2
+        
+        if df < 0:
+            s1 = Solution(s2.chromosome, s2.N_vehicules, s1.probleme)
+        else: 
+            #Probability 
+            prob: float = exp(-df / t)
+            q: float = rd.random()
+            if q < prob:
                 s1 = Solution(s2.chromosome, s2.N_vehicules, s1.probleme)
-                new_cycle = True
-            else: 
-                #Probability 
-                prob: float = exp(-df / t)
-                q: float = rd.random()
-                if q < prob:
-                    s1 = Solution(s2.chromosome, s2.N_vehicules, s1.probleme)
-                    new_cycle = True
-                else: 
-                    s2 = Solution(s1.chromosome, s1.N_vehicules, s1.probleme)
                     
-            #Reduce the temperature
-            t *= (1 - self.cooling)
+        #Reduce the temperature
+        t *= (1 - self.cooling)
             
         self.t = t
             
