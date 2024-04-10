@@ -208,6 +208,13 @@ class Solution():
                     new_chromosome.append(self.chromosome[i])
                 neighbors.append(Solution(new_chromosome, self.N_vehicules, self.probleme))
         return neighbors
+    def to_int_id(self) : 
+        n = len(self.chromosome)
+        result =0
+        for i in range(n):
+            result += (self.chromosome[i] - 1) * factorial(n - i - 1)
+        return result + 1
+    
 
     def mutate(self, p):
         if rd.random() > p : 
