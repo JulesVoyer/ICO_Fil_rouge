@@ -194,19 +194,12 @@ class Solution():
             neighbors (list[Client]): List of random neighbors
         '''
         
-        neighbors: list[Solution] = []
+        neighbors: dict[str,Solution] = {}
         for _ in range(num_neighbors):
-            new_chromosome: list[Client] = []
-            i1: int = rd.randint(0, len(self.chromosome) - 1)
-            i2: int = rd.randint(0, len(self.chromosome) - 1)
-            for i in range(len(self.chromosome)):
-                if i == i1:
-                    new_chromosome.append(self.chromosome[i2])
-                elif i == i2:
-                    new_chromosome.append(self.chromosome[i1])
-                else:
-                    new_chromosome.append(self.chromosome[i])
-                neighbors.append(Solution(new_chromosome, self.N_vehicules, self.probleme))
+            new_sol, move= self.mutate()
+            neighbors['move']=new_sol
+
+
         return neighbors
     def to_int_id(self) : 
         n = len(self.chromosome)
@@ -217,17 +210,21 @@ class Solution():
     
 
     def mutate(self, p):
+        chromosome = self.chromosome
+        N= self.N_vehicules
         if rd.random() > p : 
             i1 = rd.randint(0,len(self.chromosome)-1)
             i2 = rd.randint(0,len(self.chromosome)-1)
-            self.chromosome[i1], self.chromosome[i2] = self.chromosome[i2], self.chromosome[i1]
+            chromosome[i1], chromosome[i2] = chromosome[i2], chromosome[i1]
         if rd.random()> p :
             if rd.random() > 0.5 : 
-                self.N_vehicules += 1
+                N+= 1
             else : 
                 if self.N_vehicules>1:
-                    self.N_vehicules -= 1
-        return self
+                    N-= 1
+
+        move = f'{i1 if i1!=i2 else 0}, {i2 if i1!=i2 else 0}, {N-self.N_vehicules}'
+        return Solution(chromosome, N, self.probleme), move
         
     def cross(self, other , p):
         if self.probleme != other.probleme :
@@ -427,8 +424,12 @@ class RSAgent(myAgent):
         s2: Solution = s1
         t: float = self.t
         
+
+
         #Calculate the difference
-        s2 = s2.generate_neighbors(1)[0]
+        voisins = s2.generate_neighbors(5)
+        move = rd.shuffle(list(voisins.keys()))[0]
+        s2 = voisins[move]
         f1: float = s1.score()
         f2: float = s2.score()
         df: float = f1 - f2
@@ -471,11 +472,10 @@ class TabouAgent(myAgent):
         s2: Solution = Solution(s1.chromosome, s1.N_vehicules, s1.probleme)
         
         neighbors = s2.generate_neighbors(self.nb_neighbors)
-        neighbors = sorted(neighbors, key = lambda x: x.score())
-        
+        neighbors = sorted(neighbors.items(), key=lambda move: move[1].score())
         found = False
-        for neighbor in neighbors:
-            if neighbor not in self.visited and (s1 is None or neighbor.score() < s1.score()):
+        for move, neighbor in neighbors:
+            if neighbor.chromosome not in map(lambda x : x.chromosome, self.visited) and (s1 is None or neighbor.score() < s1.score()):
                 s2 = neighbor
                 if s2.score() < s1.score():
                     s1 = Solution(s2.chromosome, s2.N_vehicules, s2.probleme)
