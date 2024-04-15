@@ -11,11 +11,29 @@ class Lieu:
     R_TERRE = 6373.0
 
     def __init__(self, location_id: int, longitude: float, latitude: float):
+        """
+        Initializes the location with the given ID, longitude, and latitude.
+
+        Parameters:
+            location_id (int): The ID of the location.
+            longitude (float): The longitude coordinate of the location.
+            latitude (float): The latitude coordinate of the location.
+        """
         self.id = location_id
         self.longitude = longitude
         self.latitude = latitude
 
-    def distance(self, other) -> float:
+    def distance(self, other : 'Lieu') -> float:
+        """
+        Calculate the great-circle distance between two points on the Earth given their latitudes and longitudes.
+        
+        Parameters:
+            self (object): The starting point with latitude and longitude coordinates.
+            other (object): The ending point with latitude and longitude coordinates.
+        
+        Returns:
+            float: The distance between the two points in kilometers.
+        """
         distance_lat = radians(other.latitude - self.latitude)
         distance_lon = radians(other.longitude - self.longitude)
         a = sin(distance_lat / 2) ** 2 + cos(self.latitude) * cos(other.latitude) * sin(distance_lon / 2) ** 2
@@ -28,6 +46,15 @@ class Lieu:
 
 class Client(Lieu):
     def __init__(self, id: int, longitude: float, latitude: float, demande: float):
+        """
+        Initialize the object with the provided id, longitude, latitude, and demande.
+
+        Parameters:
+            id (int): The unique identifier for the object.
+            longitude (float): The longitude coordinate of the object.
+            latitude (float): The latitude coordinate of the object.
+            demande (float): The demand associated with the object.
+        """
         super().__init__(id, longitude, latitude)
         self.demande = demande
 
@@ -48,6 +75,13 @@ class Depot(Lieu):
 
 class Vehicule():
     def __init__(self, id: int, capacite: float):
+        """
+        Initialize the object with the provided id and capacite.
+
+        Parameters:
+            id (int): The unique identifier for the object.
+            capacite (float): The capacity value assigned to the object.
+        """
         self.id = id
         self.capacite = capacite
 
@@ -58,6 +92,15 @@ class Vehicule():
         return str(self.id)
 
     def mesure_load(self, actions: list[Lieu]) -> float:
+        """
+        Calculate the remaining load based on the actions taken.
+
+        Parameters:
+            actions (list[Lieu]): a list of actions taken, could be either Client or Depot objects.
+
+        Returns:
+            float: the remaining load after processing the actions.
+        """
         load = self.capacite
         for action in actions:
             if isinstance(action, Client):
@@ -67,6 +110,15 @@ class Vehicule():
         return load
 
     def mesure_distance(self, actions: list[Lieu]) -> float:
+        """
+        Calculate the total distance between the given list of locations.
+
+        Parameters:
+            actions (list[Lieu]): A list of locations to calculate the distance between.
+
+        Returns:
+            float: The total distance between all the locations in the list.
+        """
         if len(actions) <= 1: return 0
         d = 0
         for i in range(len(actions) - 1):
@@ -78,7 +130,13 @@ class Vehicule():
 
 
 class SolutionFinale():
-    def __init__(self, schedule: dict[Vehicule, list[Lieu]], probleme):
+    def __init__(self, schedule: dict[Vehicule, list[Lieu]], probleme : 'SMAVRP'):
+        """
+        Initialize the instance with the given schedule and problem.
+
+        :param schedule: A dictionary mapping Vehicule objects to a list of Lieu objects.
+        :param probleme: The problem to be initialized.
+        """
         self.schedule = schedule
         self.probleme = probleme
 
@@ -87,6 +145,9 @@ class SolutionFinale():
         return len(self.schedule)
 
     def impose_capacity_constraint(self):
+        """
+        Imposes trips back to the depot to the vehicle if it does not have enough materials to deliver the next customer.
+        """
         for vehicule in self.schedule:
             n = len(self.schedule[vehicule])
             if n == 0:
@@ -101,6 +162,10 @@ class SolutionFinale():
             self.schedule[vehicule] = done
 
     def score(self) -> float:
+        """
+        Calculate the total score of the current schedule based on the vehicle distances.
+        Return the total score as a float value.
+        """
         self.impose_capacity_constraint()
         for vehicule in self.schedule:
             if len(self.schedule[vehicule]) > 0 and not isinstance(self.schedule[vehicule][-1], Depot):
@@ -113,6 +178,9 @@ class SolutionFinale():
         return c
 
     def score_2(self) -> float:
+        """
+        A function to calculate the total cost of a schedule including vehicle constraints.
+        """
         self.impose_capacity_constraint()
         total_cost = self.nb_vehicles * self.probleme.cout_vehicule
 
@@ -132,6 +200,9 @@ class SolutionFinale():
         return str(self.schedule)
 
     def plot(self):
+        """
+        A method to plot the schedule of vehicles on a map and vizualize the results of the computation.
+        """
         self.impose_capacity_constraint()
         print(self.nb_vehicles)
         print()
@@ -170,6 +241,14 @@ class SolutionFinale():
 
 class Solution():
     def __init__(self, chromosome: list[Client], n_vehicules: int, probleme : 'SMAVRP'):
+        """
+        Initializes the chromosome, number of vehicles, and problem for the genetic algorithm.
+
+        Parameters:
+            chromosome (list[Client]): The chromosome representing the solution.
+            n_vehicules (int): The number of vehicles available.
+            probleme ('SMAVRP'): The SMAVRP problem instance.
+        """
         self.chromosome = chromosome
         self.N_vehicules = n_vehicules
         self.probleme = probleme
@@ -177,9 +256,9 @@ class Solution():
     def __str__(self):
         return f"{[str(l) for l in self.chromosome]} by {self.N_vehicules} vehicles"
 
-    def generate_neighbors(self, num_neighbors: int = 10) -> list['Solution']:
+    def generate_neighbors(self, num_neighbors: int = 10) -> list[tuple['Solution', int]]:
 
-        '''
+        """
         Function that generates direct neighbors from the solution
         
         Parameters:
@@ -187,11 +266,14 @@ class Solution():
             
         Returns:
             neighbors (list[Client]): List of random neighbors
-        '''
+        """
 
         return [self.Qstep() for _ in range(num_neighbors)]
 
     def to_int_id(self):
+        """
+        A function to convert the chromosome to an unique integer ID.
+        """
         n = len(self.chromosome)
         result = 0
         for i in range(n):
@@ -199,6 +281,11 @@ class Solution():
         return result + 1
 
     def elementary_move(self, i1: int, i2: int, n: int):
+        """
+        Perform an elementary move on the chromosome by swapping the elements at positions i1 and i2. 
+        Update the number of vehicles to be the maximum of 1 and the current number of vehicles plus n. 
+        Return a new Solution object with the updated chromosome, vehicle count, and problem.
+        """
         chromosome = self.chromosome
         N = self.N_vehicules
         chromosome[i1], chromosome[i2] = chromosome[i2], chromosome[i1]
@@ -206,6 +293,9 @@ class Solution():
         return Solution(chromosome, N, self.probleme)
 
     def mutate(self, p: float) -> tuple['Solution', str]:
+        """
+        Generates a random mutation of the solution, and returns the new solution and the move.
+        """
         i1 = 0
         i2 = 0
         n = 0
@@ -219,6 +309,15 @@ class Solution():
         return self.elementary_move(i1, i2, n), move
 
     def move(self, eps):
+        """
+        A function to decide and apply the next move based on epsilon-greedy strategy.
+        
+        Parameters:
+            eps (float): The epsilon value for the epsilon-greedy strategy.
+            
+        Returns:
+            tuple: A tuple containing the next move to be executed and the move itself.
+        """
         int_id = self.to_int_id()
         if rd.random() > eps and int_id in self.probleme.Qgrid.keys() :
             move: int = max(self.probleme.Qgrid[int_id], key=lambda k: self.probleme.Qgrid[int_id][k])
@@ -230,7 +329,11 @@ class Solution():
             sol, move = self.mutate(self.probleme.Pmut)
             return sol, move
 
-    def Qstep(self):
+    def Qstep(self) -> tuple['Solution', int]:
+        """
+        A function that performs the Q-learning step. Updates the Q-grid based on the current state, action, and rewards.
+        Returns the next solution that has been determined by epsilon-greedy and the encoding for the move leading to it.
+        """
         sol_suivante, move = self.move(0.8)
         recompense = 1 / sol_suivante.score()
         sol_optimale_future, move_optimal_futur = sol_suivante.move(0)
@@ -248,9 +351,18 @@ class Solution():
         self.probleme.Qgrid[actual_id][move] += 0.1 * (
                     recompense + 0.9 * self.probleme.Qgrid[id_suivant][move_optimal_futur] -
                     self.probleme.Qgrid[actual_id][move])
-        return sol_suivante
+        return sol_suivante, move
 
     def distance_genetique(self, other : 'Solution'):
+        """
+        Calculate the genetic distance between two solutions.
+
+        Parameters:
+        - other: Solution object, the other solution to compare to.
+
+        Returns:
+        - int, the genetic distance between the two solutions.
+        """
         list1 = self.chromosome
         list2 = other.chromosome
         lcs_matrix = [[0 for _ in range(len(list2) + 1)] for _ in range(len(list1) + 1)]
@@ -264,6 +376,16 @@ class Solution():
 
 
     def cross(self, other: 'Solution', p):
+        """
+        Generate new solutions by crossing chromosomes from two solutions if a random number is greater than breeding probablity.
+        
+        Parameters:
+            other (Solution): Another solution to cross chromosomes with.
+            p: A breeding probability threshold.
+        
+        Returns:
+            list[Solution]: A list of new solutions created by crossing chromosomes, or the original solutions if the random number is not greater than p.
+        """
         if self.probleme != other.probleme:
             print(f'p1 : {self.probleme}, {other.probleme}')
             raise ValueError("The two solutions must be from the same problem")
@@ -306,6 +428,9 @@ class Solution():
 
     @property
     def final(self):
+        """
+        This function generates the final solution by creating a list of vehicles, initializing a dictionary with empty lists for each vehicle, assigning tasks to vehicles based on the chromosome, removing empty lists, and returning the final solution object.
+        """
         vehicules = [Vehicule(i, self.probleme.capacite_vehicule) for i in range(self.N_vehicules)]
         res = {v: [] for v in vehicules}
         for i, c in enumerate(self.chromosome):
@@ -314,6 +439,11 @@ class Solution():
         return SolutionFinale(res, self.probleme)
 
     def score(self) -> float:
+        """
+        Calculate and return the score of the object.
+        Returns:
+            float: The score of the object.
+        """
         return self.final.score()
 
 
@@ -322,18 +452,31 @@ class Solution():
 class SMAVRP(Model):
     def __init__(self, clients: list[Client], depot: Depot, cout_vehicule: float, capacite_vehicule: float,
                  pmut: float):
+        """
+        Initialize the model with the given parameters.
+
+        Parameters:
+            clients (list[Client]): List of customers
+            depot (Depot): The depot location
+            cout_vehicule (float): Cost per vehicle
+            capacite_vehicule (float): Capacity of each vehicle
+            pmut (float): Mutation probability
+
+        Returns:
+            None
+        """
         super().__init__()
         self.clients = clients
         self.Pmut = pmut
         self.cout_vehicule = cout_vehicule
         self.depot = depot
         self.capacite_vehicule = capacite_vehicule
+        self.best_solution = self.gen_random_solution(3)
         self.good_solution_pool: list[Solution] = []
         self.schedule = SimultaneousActivation(self)
         self.datacollector = DataCollector(
-            model_reporters={
-                "best_solution": lambda m: m.good_solution_pool[0].score() if len(m.good_solution_pool) > 0 else None,
-                'pool_size': lambda m: len(m.good_solution_pool)}, agent_reporters={"Score": lambda a: a.best_score}
+            model_reporters={"best_solution": lambda m: m.best_solution.score()},
+            agent_reporters={"Score": lambda a: a.best_score}
         )
 
         self.Qgrid = {}
@@ -377,7 +520,15 @@ class SMAVRP(Model):
 # AGENTS
 
 class MyAgent(Agent):
-    def __init__(self, unique_id: int, model: SMAVRP, pop_size: int, enemy: bool = False):
+    def __init__(self, unique_id: int, model: SMAVRP, pop_size: int):
+        """
+        Initialize the algorithm with the given unique identifier, model, and population size.
+
+        Parameters:
+            unique_id (int): The unique identifier for the algorithm.
+            model (SMAVRP): The model for the algorithm.
+            pop_size (int): The size of the population.
+        """
         super().__init__(unique_id, model)
         self.model = model
         self.population: list[Solution] = sorted(
@@ -385,7 +536,6 @@ class MyAgent(Agent):
             key=lambda x: x.score()
         )
         self.best_score = self.population[0].score()
-        self.enemy = enemy
 
     def fetch_better_solutions_from_pool(self):
         """
@@ -398,14 +548,13 @@ class MyAgent(Agent):
 
     def push_solution_in_pool(self, sol: Solution):
         """
-        A function that pushes a solution into the pool.
+        A function to push a solution into the solution pool if it meets the genetic diversity criteria.
 
         Parameters:
-            sol (Solution): The solution to be inserted into the pool.
-        
+            sol (Solution): The solution to be pushed into the pool.
+
         Returns:
             None
-
         """
         if not isinstance(sol, Solution):
             raise Exception('wtf')
@@ -440,11 +589,13 @@ class GeneticAgent(MyAgent):
         for p1, p2 in zip(s[::2], s[1::2]):
             nex_gen.extend(p1.cross(p2, self.Pcross))
         nex_gen = sorted(nex_gen, key=lambda x: x.score())[:len(self.population)]
-        self.population = [x.Qstep() for x in nex_gen]
+        self.population = [x.Qstep()[0] for x in nex_gen]
         self.population = sorted(self.population, key=lambda x: x.score())
 
         self.push_solution_in_pool(self.population[0])
         self.best_score = self.population[0].score()
+        if self.model.best_solution.score() > self.best_score:
+            self.model.best_solution = self.population[0]
 
 
 class RSAgent(MyAgent):
@@ -470,7 +621,7 @@ class RSAgent(MyAgent):
         """
 
         self.fetch_better_solutions_from_pool()  #Update the population
-        self.population = sorted(self.population, key=lambda x: x.score())
+        self.population: list[Solution] = sorted(self.population, key=lambda x: x.score())
 
         #Parameters for the algorithm
         s1: Solution = self.population[0]
@@ -480,7 +631,7 @@ class RSAgent(MyAgent):
         #Calculate the difference
         voisins = s2.generate_neighbors(1)
 
-        s2 = voisins[0]
+        s2 = voisins[0][0]
         f1: float = s1.score()
         f2: float = s2.score()
         df: float = f1 - f2
@@ -505,16 +656,23 @@ class RSAgent(MyAgent):
         self.best_score = self.population[0].score()
         self.push_solution_in_pool(self.population[0])
 
+        if self.model.best_solution.score() > self.best_score:
+            self.model.best_solution = self.population[0]
+
+
 
 class TabouAgent(MyAgent):
 
     def __init__(self, unique_id: int, model: SMAVRP, pop_size: int, tabu_size: int = 10, neighbors: int = 10):
         super().__init__(unique_id, model, pop_size)
         self.nb_neighbors = neighbors
-        self.visited = []
+        self.tabou : list [int] = []
         self.size = tabu_size
 
     def step(self):
+        """
+        Update the population, generate better solutions, and update the best score accordingly.
+        """
 
         self.fetch_better_solutions_from_pool()    ##Update the population
         self.population = sorted(self.population, key=lambda x: x.score())
@@ -523,21 +681,29 @@ class TabouAgent(MyAgent):
         s2: Solution = Solution(s1.chromosome, s1.N_vehicules, s1.probleme)
 
         neighbors = s2.generate_neighbors(self.nb_neighbors)
-        neighbors = sorted(neighbors, key=lambda permutation: permutation.score())
+        neighbors = sorted(neighbors, key=lambda permutation: permutation[0].score())
         found = False
-        for neighbor in neighbors:
-            if neighbor.chromosome not in map(lambda x: x.chromosome, self.visited) and neighbor.score() < s1.score():
+        for neighbor, move in neighbors:
+            i1 = move >> 40 & 0xFFFFF
+            i2 = move >> 20 & 0xFFFFF
+            n = move & 0xFFFFF - 1
+            reciprocal_move = (i1 << 40) | (i2 << 20) |(1-n)
+            if move not in self.tabou and neighbor.score() < s1.score():
                 s2 = neighbor
+                s2_move = move
+                s2_reciprocal_move = reciprocal_move
                 if s2.score() < s1.score():
                     s1 = Solution(s2.chromosome, s2.N_vehicules, s2.probleme)
                 found = True
 
         if found:
-            self.visited.append(Solution(s2.chromosome, s2.N_vehicules, s2.probleme))
-            if len(self.visited) > self.size:
-                self.visited.pop(0)
+            self.tabou.append(s2_reciprocal_move)
+            if len(self.tabou) > self.size:
+                self.tabou.pop(0)
 
         self.population.insert(0, Solution(s1.chromosome, s1.N_vehicules, s1.probleme))
         self.population.pop()
         self.best_score = self.population[0].score()
         self.push_solution_in_pool(self.population[0])
+        if self.model.best_solution.score() > self.best_score:
+            self.model.best_solution = self.population[0]
