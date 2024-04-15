@@ -256,7 +256,7 @@ class Solution():
     def __str__(self):
         return f"{[str(l) for l in self.chromosome]} by {self.N_vehicules} vehicles"
 
-    def generate_neighbors(self, num_neighbors: int = 10) -> list['Solution']:
+    def generate_neighbors(self, num_neighbors: int = 10) -> list[tuple['Solution', int]]:
 
         """
         Function that generates direct neighbors from the solution
@@ -329,10 +329,10 @@ class Solution():
             sol, move = self.mutate(self.probleme.Pmut)
             return sol, move
 
-    def Qstep(self):
+    def Qstep(self) -> tuple['Solution', int]:
         """
         A function that performs the Q-learning step. Updates the Q-grid based on the current state, action, and rewards.
-        Returns the next solution that has been determined by epsilon-greedy.
+        Returns the next solution that has been determined by epsilon-greedy and the encoding for the move leading to it.
         """
         sol_suivante, move = self.move(0.8)
         recompense = 1 / sol_suivante.score()
@@ -351,7 +351,7 @@ class Solution():
         self.probleme.Qgrid[actual_id][move] += 0.1 * (
                     recompense + 0.9 * self.probleme.Qgrid[id_suivant][move_optimal_futur] -
                     self.probleme.Qgrid[actual_id][move])
-        return sol_suivante
+        return sol_suivante, move
 
     def distance_genetique(self, other : 'Solution'):
         """
@@ -471,12 +471,12 @@ class SMAVRP(Model):
         self.cout_vehicule = cout_vehicule
         self.depot = depot
         self.capacite_vehicule = capacite_vehicule
+        self.best_solution = self.gen_random_solution(3)
         self.good_solution_pool: list[Solution] = []
         self.schedule = SimultaneousActivation(self)
         self.datacollector = DataCollector(
-            model_reporters={
-                "best_solution": lambda m: m.good_solution_pool[0].score() if len(m.good_solution_pool) > 0 else None,
-                'pool_size': lambda m: len(m.good_solution_pool)}, agent_reporters={"Score": lambda a: a.best_score}
+            model_reporters={"best_solution": lambda m: m.best_solution.score()},
+            agent_reporters={"Score": lambda a: a.best_score}
         )
 
         self.Qgrid = {}
@@ -589,11 +589,13 @@ class GeneticAgent(MyAgent):
         for p1, p2 in zip(s[::2], s[1::2]):
             nex_gen.extend(p1.cross(p2, self.Pcross))
         nex_gen = sorted(nex_gen, key=lambda x: x.score())[:len(self.population)]
-        self.population = [x.Qstep() for x in nex_gen]
+        self.population = [x.Qstep()[0] for x in nex_gen]
         self.population = sorted(self.population, key=lambda x: x.score())
 
         self.push_solution_in_pool(self.population[0])
         self.best_score = self.population[0].score()
+        if self.model.best_solution.score() > self.best_score:
+            self.model.best_solution = self.population[0]
 
 
 class RSAgent(MyAgent):
@@ -619,7 +621,7 @@ class RSAgent(MyAgent):
         """
 
         self.fetch_better_solutions_from_pool()  #Update the population
-        self.population = sorted(self.population, key=lambda x: x.score())
+        self.population: list[Solution] = sorted(self.population, key=lambda x: x.score())
 
         #Parameters for the algorithm
         s1: Solution = self.population[0]
@@ -629,7 +631,7 @@ class RSAgent(MyAgent):
         #Calculate the difference
         voisins = s2.generate_neighbors(1)
 
-        s2 = voisins[0]
+        s2 = voisins[0][0]
         f1: float = s1.score()
         f2: float = s2.score()
         df: float = f1 - f2
@@ -654,13 +656,17 @@ class RSAgent(MyAgent):
         self.best_score = self.population[0].score()
         self.push_solution_in_pool(self.population[0])
 
+        if self.model.best_solution.score() > self.best_score:
+            self.model.best_solution = self.population[0]
+
+
 
 class TabouAgent(MyAgent):
 
     def __init__(self, unique_id: int, model: SMAVRP, pop_size: int, tabu_size: int = 10, neighbors: int = 10):
         super().__init__(unique_id, model, pop_size)
         self.nb_neighbors = neighbors
-        self.visited : list [Solution] = []
+        self.tabou : list [int] = []
         self.size = tabu_size
 
     def step(self):
@@ -675,21 +681,29 @@ class TabouAgent(MyAgent):
         s2: Solution = Solution(s1.chromosome, s1.N_vehicules, s1.probleme)
 
         neighbors = s2.generate_neighbors(self.nb_neighbors)
-        neighbors = sorted(neighbors, key=lambda permutation: permutation.score())
+        neighbors = sorted(neighbors, key=lambda permutation: permutation[0].score())
         found = False
-        for neighbor in neighbors:
-            if neighbor.chromosome not in map(lambda x: x.chromosome, self.visited) and neighbor.score() < s1.score():
+        for neighbor, move in neighbors:
+            i1 = move >> 40 & 0xFFFFF
+            i2 = move >> 20 & 0xFFFFF
+            n = move & 0xFFFFF - 1
+            reciprocal_move = (i1 << 40) | (i2 << 20) |(1-n)
+            if move not in self.tabou and neighbor.score() < s1.score():
                 s2 = neighbor
+                s2_move = move
+                s2_reciprocal_move = reciprocal_move
                 if s2.score() < s1.score():
                     s1 = Solution(s2.chromosome, s2.N_vehicules, s2.probleme)
                 found = True
 
         if found:
-            self.visited.append(Solution(s2.chromosome, s2.N_vehicules, s2.probleme))
-            if len(self.visited) > self.size:
-                self.visited.pop(0)
+            self.tabou.append(s2_reciprocal_move)
+            if len(self.tabou) > self.size:
+                self.tabou.pop(0)
 
         self.population.insert(0, Solution(s1.chromosome, s1.N_vehicules, s1.probleme))
         self.population.pop()
         self.best_score = self.population[0].score()
         self.push_solution_in_pool(self.population[0])
+        if self.model.best_solution.score() > self.best_score:
+            self.model.best_solution = self.population[0]
