@@ -482,9 +482,16 @@ class SMAVRP(Model):
         self.Qgrid = {}
 
     def reset(self):
+        """
+        Resets the model by generating a new random solution and resetting the agents.
+        """
         self.best_solution = self.gen_random_solution(3)
         for agent in self.schedule.agents:
             agent.reset()
+        self.datacollector=DataCollector(model_reporters={"best_solution": lambda m: m.best_solution.score()},
+                                          agent_reporters={"Score": lambda a: a.best_score})
+
+        self.good_solution_pool = []
         
 
     def gen_random_solution(self, n_transports: int):
@@ -523,6 +530,7 @@ class SMAVRP(Model):
         self.schedule.step()
 
 
+
 # AGENTS
 
 class MyAgent(Agent):
@@ -544,11 +552,14 @@ class MyAgent(Agent):
         self.best_score = self.population[0].score()
 
     def reset(self):
-        self.population = sorted(
-            [self.model.gen_random_solution(rd.randint(2, 10)) for _ in range(len(self.population))],
-            key=lambda x: x.score()
-        )
-        self.best_score = self.population[0].score()
+            """
+            Resets the population by generating new random solutions and sorting them based on their scores.
+            """
+            self.population = sorted(
+                [self.model.gen_random_solution(rd.randint(2, 10)) for _ in range(len(self.population))],
+                key=lambda x: x.score()
+            )
+            self.best_score = self.population[0].score()
 
     def fetch_better_solutions_from_pool(self):
         """
