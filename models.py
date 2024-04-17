@@ -481,6 +481,12 @@ class SMAVRP(Model):
 
         self.Qgrid = {}
 
+    def reset(self):
+        self.best_solution = self.gen_random_solution(3)
+        for agent in self.schedule.agents:
+            agent.reset()
+        
+
     def gen_random_solution(self, n_transports: int):
         """
         Generate a random solution for the given number of transports.
@@ -533,6 +539,13 @@ class MyAgent(Agent):
         self.model = model
         self.population: list[Solution] = sorted(
             [self.model.gen_random_solution(rd.randint(2, 10)) for _ in range(pop_size)],
+            key=lambda x: x.score()
+        )
+        self.best_score = self.population[0].score()
+
+    def reset(self):
+        self.population = sorted(
+            [self.model.gen_random_solution(rd.randint(2, 10)) for _ in range(len(self.population))],
             key=lambda x: x.score()
         )
         self.best_score = self.population[0].score()
